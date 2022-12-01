@@ -1,0 +1,12 @@
+.vagrant
+*.log
+*.o
+project-2_15-441/client
+project-2_15-441/receiver
+project-2_15-441/sender
+project-2_15-441/server
+project-2_15-441/tests/testing_server
+**/*.pyc
+**/handin.tar.gz
+**/*.pcap
+!**/test.pcap
