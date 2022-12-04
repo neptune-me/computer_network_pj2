@@ -35,6 +35,7 @@ int cmu_socket(cmu_socket_t *sock, const cmu_socket_type_t socket_type,
     perror("ERROR opening socket");
     return EXIT_ERROR;
   }
+
   sock->socket = sockfd;
   sock->received_buf = NULL;
   sock->received_len = 0;

@@ -29,6 +29,8 @@
 #include "cmu_tcp.h"
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define FALSE 0
+#define TRUE 1
 
 /**
  * Tells if a given sequence number has been acknowledged by the socket.
@@ -66,6 +68,15 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {
       if (after(ack, sock->window.last_ack_received)) {
         sock->window.last_ack_received = ack;
       }
+      if (sock->state == SYN_RCVD) {
+        sock->state = ESTABLISHED;  // 服务器收到ACK，握手完成
+      }
+      break;
+    }
+    // 服务器端收到SYN，状态切换到SYN_RCVD
+    case SYN_FLAG_MASK: {
+      sock->window.last_ack_received = get_ack(hdr);
+      sock->state = SYN_RCVD;
       break;
     }
     default: {
@@ -219,10 +230,60 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
   }
 }
 
+void client_handshake(cmu_socket_t *sock) {}
+
+/*
+ * 检查SYN是否有效，如果无效，不应答
+ * 发送SYNACK来应答SYN
+ */
+
+void server_handshake(cmu_socket_t *sock) {
+  sock->state = LISTEN;
+  // int three_handshake_succ = FALSE;
+  int seq = rand();  // 随机生成序号
+  uint8_t *msg;
+  while (1) {
+    if (sock->state == LISTEN) {
+      check_for_data(
+          sock, NO_WAIT);  // 监听SYN，read mode是NO_WAIT，如果没有数据立即返回
+      // printf("LISTEN");
+
+    } else if (sock->state ==
+               SYN_RCVD) {  // 如果收到SYN，应答SYNACK，等客户回复ACK
+      printf("SYN_RCVD");
+
+      sock->window.last_ack_received = seq;
+      int ack = sock->window.next_seq_expected;
+      msg = create_packet(sock->my_port, sock->conn.sin_port, seq, ack,
+                          sizeof(cmu_tcp_header_t), sizeof(cmu_tcp_header_t),
+                          ACK_FLAG_MASK | SYN_FLAG_MASK, 1, 0, NULL, NULL, 0);
+      sendto(sock->socket, msg, sizeof(cmu_tcp_header_t), 0,
+             (struct sockaddr *)&(sock->conn), sizeof(sock->conn));
+      free(msg);
+      check_for_data(
+          sock,
+          TIMEOUT);  // TIMEOUT：阻塞，直到收到数据或超时。如果超时没收到ACK则重传SYNACK
+      if (sock->state == ESTABLISHED) {
+        break;
+      }
+    }
+  }
+}
+
+void init_handshake(cmu_socket_t *sock) {
+  if (sock->type == TCP_INITIATOR) {
+    client_handshake(sock);
+  } else if (sock->type == TCP_LISTENER) {
+    server_handshake(sock);
+  }
+}
+
 void *begin_backend(void *in) {
   cmu_socket_t *sock = (cmu_socket_t *)in;
   int death, buf_len, send_signal;
   uint8_t *data;
+
+  // init_handshake(sock);
 
   while (1) {
     while (pthread_mutex_lock(&(sock->death_lock)) != 0) {
