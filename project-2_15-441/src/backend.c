@@ -65,8 +65,10 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {
   switch (flags) {
     case ACK_FLAG_MASK: {
       uint32_t ack = get_ack(hdr);
+      uint32_t seq = get_seq(hdr);
       if (after(ack, sock->window.last_ack_received)) {
         sock->window.last_ack_received = ack;
+        sock->window.next_seq_expected = seq;
       }
       if (sock->state == SYN_RCVD) {
         sock->state = ESTABLISHED;  // 服务器收到ACK，握手完成
@@ -79,6 +81,20 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {
       sock->state = SYN_RCVD;
       break;
     }
+    //服务端响应后客户端状态更新
+    case ACK_FLAG_MASK | SYN_FLAG_MASK:
+      sock->window.last_ack_received = get_ack(hdr);
+      sock->window.next_seq_expected = get_seq(hdr);
+      sock->state = ESTABLISHED;
+      //第三次握手
+      char *msg = create_packet(sock->my_port,sock->conn.sin_port,sock->window.last_ack_received+1,sock->window.next_seq_expected,
+      sizeof(cmu_tcp_header_t), sizeof(cmu_tcp_header_t),ACK_FLAG_MASK | SYN_FLAG_MASK, 1, 0, NULL, NULL, 0);
+      sendto(sock->socket,msg,sizeof(cmu_tcp_header_t),0,(struct sockaddr *)&(sock->conn), sizeof(sock->conn));
+      
+      // printf("第三次握手");
+      flags = 5;
+      free(msg);
+      break;
     default: {
       socklen_t conn_len = sizeof(sock->conn);
       uint32_t seq = sock->window.last_ack_received;
@@ -224,13 +240,35 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
           break;
         }
       }
-
       data_offset += payload_len;
     }
   }
 }
 
-void client_handshake(cmu_socket_t *sock) {}
+void client_handshake(cmu_socket_t *sock) {
+  sock->state = CLOSED;
+  int seq = rand();
+  uint8_t *msg;
+  while(1){
+    if (sock->state == CLOSED) {
+      msg = create_packet(sock->my_port, sock->conn.sin_port, seq, 0,
+                          sizeof(cmu_tcp_header_t), sizeof(cmu_tcp_header_t),
+                          SYN_FLAG_MASK, 1, 0, NULL, NULL, 0);
+      sendto(sock->socket, msg, sizeof(cmu_tcp_header_t), 0,
+             (struct sockaddr *)&(sock->conn), sizeof(sock->conn));
+      sock->state = SYN_SENT;
+      printf("第一次握手");
+      free(msg);
+    } else if (sock->state == SYN_SENT) {
+      check_for_data(sock,TIMEOUT);
+      if (sock->state == SYN_SENT) {
+        sock->state = CLOSED;
+      }else{
+        break;
+      }
+    }
+  }
+}
 
 /*
  * 检查SYN是否有效，如果无效，不应答
@@ -259,6 +297,7 @@ void server_handshake(cmu_socket_t *sock) {
                           ACK_FLAG_MASK | SYN_FLAG_MASK, 1, 0, NULL, NULL, 0);
       sendto(sock->socket, msg, sizeof(cmu_tcp_header_t), 0,
              (struct sockaddr *)&(sock->conn), sizeof(sock->conn));
+      printf("第二次握手");
       free(msg);
       check_for_data(
           sock,
@@ -283,7 +322,7 @@ void *begin_backend(void *in) {
   int death, buf_len, send_signal;
   uint8_t *data;
 
-  // init_handshake(sock);
+  init_handshake(sock);
 
   while (1) {
     while (pthread_mutex_lock(&(sock->death_lock)) != 0) {

@@ -45,7 +45,8 @@ typedef enum {
   LISTEN = 0,
   SYN_RCVD = 1,
   ESTABLISHED = 2,
-
+  CLOSED = 3,
+  SYN_SENT = 4,
 } server_state_t;
 
 /**
