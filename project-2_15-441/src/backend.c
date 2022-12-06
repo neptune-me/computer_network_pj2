@@ -87,12 +87,11 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {
       sock->window.next_seq_expected = get_seq(hdr);
       sock->state = ESTABLISHED;
       //第三次握手
-      char *msg = create_packet(sock->my_port,sock->conn.sin_port,sock->window.last_ack_received+1,sock->window.next_seq_expected,
-      sizeof(cmu_tcp_header_t), sizeof(cmu_tcp_header_t),ACK_FLAG_MASK | SYN_FLAG_MASK, 1, 0, NULL, NULL, 0);
+      uint8_t *msg = create_packet(sock->my_port,sock->conn.sin_port,sock->window.last_ack_received+1,sock->window.next_seq_expected,
+      sizeof(cmu_tcp_header_t), sizeof(cmu_tcp_header_t),ACK_FLAG_MASK, 1, 0, NULL, NULL, 0);
       sendto(sock->socket,msg,sizeof(cmu_tcp_header_t),0,(struct sockaddr *)&(sock->conn), sizeof(sock->conn));
       
-      // printf("第三次握手");
-      flags = 5;
+      printf("第三次握手\n");
       free(msg);
       break;
     default: {
@@ -257,7 +256,7 @@ void client_handshake(cmu_socket_t *sock) {
       sendto(sock->socket, msg, sizeof(cmu_tcp_header_t), 0,
              (struct sockaddr *)&(sock->conn), sizeof(sock->conn));
       sock->state = SYN_SENT;
-      printf("第一次握手");
+      printf("第一次握手\n");
       free(msg);
     } else if (sock->state == SYN_SENT) {
       check_for_data(sock,TIMEOUT);
@@ -266,6 +265,8 @@ void client_handshake(cmu_socket_t *sock) {
       }else{
         break;
       }
+    } else if (sock->state == ESTABLISHED ) {
+      break;
     }
   }
 }
@@ -286,9 +287,8 @@ void server_handshake(cmu_socket_t *sock) {
           sock, NO_WAIT);  // 监听SYN，read mode是NO_WAIT，如果没有数据立即返回
       // printf("LISTEN");
 
-    } else if (sock->state ==
-               SYN_RCVD) {  // 如果收到SYN，应答SYNACK，等客户回复ACK
-      printf("SYN_RCVD");
+    } else if (sock->state == SYN_RCVD) {  // 如果收到SYN，应答SYNACK，等客户回复ACK
+      // printf("SYN_RCVD");
 
       sock->window.last_ack_received = seq;
       int ack = sock->window.next_seq_expected;
@@ -297,7 +297,7 @@ void server_handshake(cmu_socket_t *sock) {
                           ACK_FLAG_MASK | SYN_FLAG_MASK, 1, 0, NULL, NULL, 0);
       sendto(sock->socket, msg, sizeof(cmu_tcp_header_t), 0,
              (struct sockaddr *)&(sock->conn), sizeof(sock->conn));
-      printf("第二次握手");
+      printf("第二次握手\n");
       free(msg);
       check_for_data(
           sock,
@@ -322,7 +322,9 @@ void *begin_backend(void *in) {
   int death, buf_len, send_signal;
   uint8_t *data;
 
+  printf("start handshake\n");
   init_handshake(sock);
+  printf("end handshake\n");
 
   while (1) {
     while (pthread_mutex_lock(&(sock->death_lock)) != 0) {
