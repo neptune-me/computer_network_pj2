@@ -98,12 +98,33 @@ def test_basic_ack_packets():
 
                 if (
                     server_ack_pkt is None
-                    or server_ack_pkt[CMUTCP].flags != ACK_MASK
-                    or server_ack_pkt[CMUTCP].ack_num != 1001 + len(payload)
                 ):
                     print(
                         "Listener (server) did not properly respond to data "
                         "packet."
+                        "1"
+                    )
+                    print("Test Failed")
+                    conn.run(STOP_TESTING_SERVER_CMD)
+                    return
+                if (
+                    server_ack_pkt[CMUTCP].flags != ACK_MASK
+                ):
+                    print(
+                        "Listener (server) did not properly respond to data "
+                        "packet."
+                        "2"
+                    )
+                    print("Test Failed")
+                    conn.run(STOP_TESTING_SERVER_CMD)
+                    return
+                if (
+                    server_ack_pkt[CMUTCP].ack_num != 1001 + len(payload)
+                ):
+                    print(
+                        "Listener (server) did not properly respond to data "
+                        "packet."
+                        "3"
                     )
                     print("Test Failed")
                     conn.run(STOP_TESTING_SERVER_CMD)

@@ -28,8 +28,25 @@
 #define EXIT_FAILURE 1
 
 typedef struct {
+  /* data */
+  uint32_t payload_len;  // the length of payload in received window
+  uint32_t seq;          // the seq of payload in received window
+  uint8_t* payload;      // the payload of payload in received window
+} receiving_window;
+
+typedef struct {
+  /* data */
+  uint64_t send_time;    // the sent time of payload in sending window
+  uint8_t* payload;      // the payload of payload in sending window
+  uint16_t payload_len;  // the length of payload in sending window
+  uint32_t seq;          // the seq of payload in sending window
+} sending_window;
+
+typedef struct {
   uint32_t next_seq_expected;
   uint32_t last_ack_received;
+  receiving_window* received_windows;
+  sending_window* sending_windows;
   pthread_mutex_t ack_lock;
 } window_t;
 
@@ -70,6 +87,9 @@ typedef struct {
   pthread_mutex_t death_lock;
   window_t window;
   server_state_t state;
+  uint64_t estRtt;
+  uint64_t devRtt;
+  uint64_t estRto;
 } cmu_socket_t;
 
 /*
@@ -132,7 +152,7 @@ int cmu_read(cmu_socket_t* sock, void* buf, const int length,
 /**
  * Writes data to a CMU-TCP socket.
  *
- * @param sock The socket to write to.
+ * @param sock The socket to write to.S
  * @param buf The data to write.
  * @param length The number of bytes to write.
  *

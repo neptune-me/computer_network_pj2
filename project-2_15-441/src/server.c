@@ -42,7 +42,7 @@ void functionality(cmu_socket_t *sock) {
   printf("N: %d\n", n);
   cmu_write(sock, "https://www.youtube.com/watch?v=dQw4w9WgXcQ", 44);
 
-  sleep(1);
+  sleep(5);
   n = cmu_read(sock, buf, BUF_SIZE, NO_FLAG);
   printf("N: %d\n", n);
   fp = fopen("/tmp/file.c", "w");
